@@ -18,6 +18,10 @@ interface APITask {
   phase: string;
   deadline: string;
   subTasks?: SubTask[];
+  payloadPreview?: {
+    type: 'email' | 'data' | 'code';
+    content: any;
+  };
 }
 
 const INITIAL_TASKS: APITask[] = [
@@ -32,7 +36,18 @@ const INITIAL_TASKS: APITask[] = [
       { id: "a1", title: "Review standard terms", completed: true },
       { id: "a2", title: "Update pricing tier", completed: true },
       { id: "a3", title: "Final sign-off", completed: false },
-    ]
+    ],
+    payloadPreview: {
+      type: 'data',
+      content: {
+        headers: ['Term', 'Current', 'Proposed'],
+        rows: [
+          ['Contract Length', '1 Year', '3 Years'],
+          ['Annual Value', '$120,000', '$150,000'],
+          ['SLA Tier', 'Standard', 'Enterprise'],
+        ]
+      }
+    }
   },
   {
     id: "t2",
@@ -40,7 +55,15 @@ const INITIAL_TASKS: APITask[] = [
     status: "Awaiting Approval",
     progress: 95,
     phase: "Ready to Send",
-    deadline: "Today, 3:00 PM"
+    deadline: "Today, 3:00 PM",
+    payloadPreview: {
+      type: 'email',
+      content: {
+        to: "subscribers@acmecorp.com (12,402 contacts)",
+        subject: "🤖 AutoExec: Q3 Product Updates & AI Features",
+        body: "Hi {first_name},\n\nWe're thrilled to share our Q3 updates with you. This quarter, we've rolled out a brand new AI-powered workflow engine that can automate up to 40% of standard administrative approvals.\n\nKey features:\n- Smart Triage\n- One-click integrations (OpenAI, APIfy)\n- Actionable Dashboards\n\nCheck out the full release notes on our blog!\n\nBest,\nThe AutoExec Team"
+      }
+    }
   },
   {
     id: "t3",
@@ -48,7 +71,23 @@ const INITIAL_TASKS: APITask[] = [
     status: "Awaiting Approval",
     progress: 85,
     phase: "Editorial Review",
-    deadline: "Oct 12, 2026"
+    deadline: "Oct 12, 2026",
+    payloadPreview: {
+      type: 'code',
+      content: {
+        language: 'yaml',
+        code: `title: "The Future of AI Automation in SaaS"
+author: "AutoExec AI"
+date: "2026-10-12"
+draft: false
+tags: ['AI', 'Automation', 'SaaS']
+---
+
+# The Future of AI Automation
+
+In 2026, we are seeing a massive shift from simple copilots to autonomous agents that can safely execute standard business processes...`
+      }
+    }
   }
 ];
 
@@ -82,6 +121,62 @@ export function ApprovalsPage() {
         toast.success(`Task ${action}d successfully`);
       }, 800);
     }
+  };
+
+  const renderPayloadPreview = (preview: APITask['payloadPreview']) => {
+    if (!preview) return null;
+
+    if (preview.type === 'email') {
+      return (
+        <div className="bg-secondary-background border-2 border-border p-4 rounded-base mt-2 shadow-[2px_2px_0_0_var(--border)]">
+          <div className="flex flex-col gap-2 mb-3 pb-3 border-b-2 border-border">
+            <div className="text-sm"><span className="font-bold mr-2">To:</span>{preview.content.to}</div>
+            <div className="text-sm"><span className="font-bold mr-2">Subject:</span>{preview.content.subject}</div>
+          </div>
+          <div className="text-sm whitespace-pre-wrap font-medium">{preview.content.body}</div>
+        </div>
+      );
+    }
+
+    if (preview.type === 'data') {
+      return (
+        <div className="overflow-x-auto mt-2 rounded-base border-2 border-border shadow-[2px_2px_0_0_var(--border)]">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted text-foreground border-b-2 border-border">
+              <tr>
+                {preview.content.headers.map((h: string, i: number) => (
+                  <th key={i} className="px-4 py-3 font-bold border-r-2 border-border last:border-r-0">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {preview.content.rows.map((row: string[], i: number) => (
+                <tr key={i} className="border-b border-border last:border-b-0 bg-secondary-background">
+                  {row.map((cell: string, j: number) => (
+                    <td key={j} className="px-4 py-3 border-r-2 border-border last:border-r-0">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (preview.type === 'code') {
+      return (
+        <div className="mt-2 rounded-base border-2 border-border overflow-hidden bg-[#1E1E1E] shadow-[2px_2px_0_0_var(--border)]">
+          <div className="flex justify-between items-center px-4 py-2 bg-[#2D2D2D] border-b-2 border-border">
+            <span className="text-xs font-bold text-[#E0E0E0] uppercase tracking-wider">{preview.content.language}</span>
+          </div>
+          <pre className="p-4 overflow-auto text-xs text-[#E0E0E0] font-mono leading-relaxed whitespace-pre-wrap">
+            <code>{preview.content.code}</code>
+          </pre>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -133,7 +228,16 @@ export function ApprovalsPage() {
                   </Button>
                 </div>
               }
-            />
+            >
+              {task.payloadPreview && (
+                <div className="space-y-3">
+                  <h5 className="text-sm font-heading font-bold text-foreground uppercase tracking-wider">
+                    Payload Preview
+                  </h5>
+                  {renderPayloadPreview(task.payloadPreview)}
+                </div>
+              )}
+            </TaskCard>
           ))}
         </div>
       )}

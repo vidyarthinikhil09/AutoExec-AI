@@ -5,15 +5,25 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Bell, Bot, Shield, Globe, Key, Trash2, Moon, Sun, Monitor } from "lucide-react";
+import { User, Bell, Bot, Shield, Globe, Key, Trash2, Moon, Sun, Monitor, Lock, Loader2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "next-themes";
+import { toast } from "sonner";
 
 export function SettingsPage() {
   const { user, updateAvatar } = useAuth();
   const { theme, setTheme } = useTheme();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatarUrl || null);
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({});
+
+  const handleVerify = (service: string) => {
+    setVerifying((prev) => ({ ...prev, [service]: true }));
+    setTimeout(() => {
+      setVerifying((prev) => ({ ...prev, [service]: false }));
+      toast.success(`${service} connection verified successfully!`);
+    }, 1500);
+  };
 
   // Sync state if user changes externally
   useEffect(() => {
@@ -79,6 +89,12 @@ export function SettingsPage() {
             className="w-full justify-start px-4 py-4 text-left font-bold text-base data-[state=active]:bg-main data-[state=active]:text-main-foreground data-[state=active]:shadow-[4px_4px_0_0_var(--border)] rounded-base border-2 border-transparent data-[state=active]:border-border data-[state=active]:-translate-y-1 data-[state=active]:-translate-x-1 transition-all !h-auto"
           >
             <Globe className="mr-3 h-5 w-5 shrink-0" /> Integrations
+          </TabsTrigger>
+          <TabsTrigger 
+            value="vault" 
+            className="w-full justify-start px-4 py-4 text-left font-bold text-base data-[state=active]:bg-main data-[state=active]:text-main-foreground data-[state=active]:shadow-[4px_4px_0_0_var(--border)] rounded-base border-2 border-transparent data-[state=active]:border-border data-[state=active]:-translate-y-1 data-[state=active]:-translate-x-1 transition-all !h-auto"
+          >
+            <Lock className="mr-3 h-5 w-5 shrink-0" /> Secret Vault
           </TabsTrigger>
         </TabsList>
         
@@ -319,6 +335,65 @@ export function SettingsPage() {
                     </div>
                   </div>
                   <Button variant="outline" className="font-bold uppercase tracking-widest mt-0 max-sm:mt-2">Connect</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="vault" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl font-black font-heading uppercase">Secret Vault</CardTitle>
+                <CardDescription className="text-base font-medium">Securely store your API keys for third-party integrations.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="apify" className="font-bold flex uppercase">Apify API Token</Label>
+                  <div className="flex gap-4">
+                    <Input id="apify" type="password" placeholder="apify_api_..." defaultValue="apify_api_token_here" className="flex-1" />
+                    <Button 
+                      variant="outline" 
+                      className="font-bold uppercase tracking-widest min-w-[180px]"
+                      onClick={() => handleVerify('Apify')}
+                      disabled={verifying['Apify']}
+                    >
+                      {verifying['Apify'] ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</> : 'Verify Connection'}
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 pt-4 border-t-2 border-border">
+                  <Label htmlFor="openai" className="font-bold flex uppercase">OpenAI / Gemini API Key</Label>
+                  <div className="flex gap-4">
+                    <Input id="openai" type="password" placeholder="sk-..." defaultValue="sk-live-placeholder" className="flex-1" />
+                    <Button 
+                      variant="outline" 
+                      className="font-bold uppercase tracking-widest min-w-[180px]"
+                      onClick={() => handleVerify('OpenAI/Gemini')}
+                      disabled={verifying['OpenAI/Gemini']}
+                    >
+                      {verifying['OpenAI/Gemini'] ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</> : 'Verify Connection'}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-4 border-t-2 border-border">
+                  <Label htmlFor="sendgrid" className="font-bold flex uppercase">SendGrid API Key</Label>
+                  <div className="flex gap-4">
+                    <Input id="sendgrid" type="password" placeholder="SG...." defaultValue="SG.placeholder.key" className="flex-1" />
+                    <Button 
+                      variant="outline" 
+                      className="font-bold uppercase tracking-widest min-w-[180px]"
+                      onClick={() => handleVerify('SendGrid')}
+                      disabled={verifying['SendGrid']}
+                    >
+                      {verifying['SendGrid'] ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</> : 'Verify Connection'}
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end pt-4 border-t-2 border-border mt-6">
+                  <Button size="lg" className="font-bold uppercase tracking-widest w-full sm:w-auto">Save Vault Secrets</Button>
                 </div>
               </CardContent>
             </Card>

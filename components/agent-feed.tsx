@@ -4,110 +4,120 @@ import { Terminal } from "lucide-react";
 interface LogEntry {
   id: number;
   time: string;
-  message: string;
+  status: "ok" | "working" | "error" | "info" | "none";
+  text: string;
 }
 
-const INITIAL_LOGS: LogEntry[] = [
-  { id: 1, time: "10:42", message: "Parsing intent..." },
-  { id: 2, time: "10:43", message: "Sub-tasks created: 3" },
-  { id: 3, time: "10:44", message: "Reading uploaded PDF..." },
-  { id: 4, time: "10:45", message: "Generating report draft..." },
-  { id: 5, time: "10:46", message: "Email draft ready for approval" },
+const SEQUENCE = [
+  { action: "type", status: "info", text: "Receiving intent from orchestrator..." },
+  { action: "type", status: "working", text: "Initializing scraper environment..." },
+  { action: "replace", status: "ok", text: "Scraper initialized and assigned IP" },
+  { action: "type", status: "working", text: "Parsing DOM structure..." },
+  { action: "replace", status: "ok", text: "DOM parsed (2,408 nodes extracted)" },
+  { action: "type", status: "working", text: "Extracting terms using defined schema..." },
+  { action: "replace", status: "ok", text: "Extraction complete: 3 keys found" },
+  { action: "type", status: "working", text: "Synthesizing payload for external CRM..." },
+  { action: "replace", status: "ok", text: "Payload synthesis complete" },
+  { action: "type", status: "working", text: "Drafting manual approval request..." },
+  { action: "replace", status: "ok", text: "Workflow paused. Awaiting human approval." },
 ];
 
 export function AgentFeed() {
-  const [logs, setLogs] = useState<LogEntry[]>(INITIAL_LOGS);
-  const [isConnected, setIsConnected] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const [activeText, setActiveText] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentTime, setCurrentTime] = useState("");
 
-  // Auto-scroll to bottom when logs change
+  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, [logs, activeText]);
 
-  // Connect to SSE endpoint for live logs
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-    
-    let eventSource: EventSource | null = null;
-    
-    try {
-      eventSource = new EventSource(`${apiUrl}/agent/logs`);
-      
-      eventSource.onopen = () => {
-        setIsConnected(true);
-      };
+    if (currentIndex >= SEQUENCE.length) return;
 
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Format time if not provided
-          const timeString = data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          
-          setLogs((prev) => [
-            ...prev,
-            {
-              id: prev.length > 0 ? prev[prev.length - 1].id + 1 : 1,
-              time: timeString,
-              message: data.message || data.log || event.data,
-            },
-          ]);
-        } catch (e) {
-          // If not JSON, just use the raw string
-          setLogs((prev) => [
-            ...prev,
-            {
-              id: prev.length > 0 ? prev[prev.length - 1].id + 1 : 1,
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              message: event.data,
-            },
-          ]);
+    const step = SEQUENCE[currentIndex];
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    if (step.action === "replace") {
+      // Instantly replace the last log
+      setLogs(prev => {
+        const newLogs = [...prev];
+        if (newLogs.length > 0) {
+          newLogs[newLogs.length - 1] = {
+            ...newLogs[newLogs.length - 1],
+            status: step.status as any,
+            text: step.text,
+          };
+        }
+        return newLogs;
+      });
+      
+      const timer = setTimeout(() => {
+        setCurrentIndex(prev => prev + 1);
+      }, 500); // Small pause after replacing before next action
+      return () => clearTimeout(timer);
+    } 
+    
+    if (step.action === "type") {
+      setCurrentTime(now);
+      let charIndex = 0;
+      let typingTimer: NodeJS.Timeout;
+
+      const typeChar = () => {
+        // We type out characters one by one
+        setActiveText(step.text.substring(0, charIndex));
+        charIndex++;
+        
+        if (charIndex <= step.text.length) {
+          typingTimer = setTimeout(typeChar, Math.random() * 30 + 10);
+        } else {
+          // Finished typing this step
+          const pauseTimer = setTimeout(() => {
+            setLogs(prev => [
+              ...prev,
+              {
+                id: Date.now() + currentIndex,
+                time: now,
+                status: step.status as any,
+                text: step.text
+              }
+            ]);
+            setActiveText("");
+            setCurrentIndex(prev => prev + 1);
+          }, step.status === "working" ? 1200 : 400); // longer pause if "working"
         }
       };
 
-      eventSource.onerror = () => {
-        setIsConnected(false);
-        // Don't close immediately to allow EventSource to auto-reconnect
-      };
-    } catch (err) {
-      console.error("Failed to connect to SSE endpoint:", err);
+      typeChar();
+      return () => clearTimeout(typingTimer);
     }
+  }, [currentIndex]);
 
-    // Fallback simulation if SSE fails or isn't implemented on backend yet
-    const fallbackTimer = setTimeout(() => {
-      if (!isConnected) {
-        setLogs((prev) => [
-          ...prev,
-          {
-            id: prev.length + 1,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            message: "Awaiting user approval to send email. (Fallback simulation)",
-          },
-        ]);
-      }
-    }, 5000);
-
-    return () => {
-      clearTimeout(fallbackTimer);
-      if (eventSource) {
-        eventSource.close();
-      }
-    };
-  }, [isConnected]);
+  const getStatusTag = (status: string) => {
+    switch (status) {
+      case "working": return <span className="text-chart-1 font-bold mr-2 animate-pulse">[..]</span>;
+      case "ok": return <span className="text-[#00D696] font-bold mr-2">[OK]</span>;
+      case "error": return <span className="text-destructive font-bold mr-2">[!!]</span>;
+      case "info": return <span className="text-chart-2 font-bold mr-2">[i]</span>;
+      default: return null;
+    }
+  };
 
   return (
-    <div className="bg-black border-2 border-border rounded-base shadow-shadow overflow-hidden flex flex-col h-[320px] mb-6 transition-all">
+    <div className="bg-[#111111] border-2 border-border rounded-base shadow-[4px_4px_0_0_var(--border)] overflow-hidden flex flex-col h-[320px] mb-6 transition-all">
       {/* Terminal Header */}
       <div className="bg-background px-4 py-3 flex items-center gap-2 border-b-2 border-border">
         <Terminal size={16} className="text-foreground" />
         <span className="text-xs font-bold font-heading text-foreground tracking-wider uppercase">
-          Live Agent Feed
+          Autonomous Agent Log
         </span>
         <div className="ml-auto flex gap-1.5 border-2 border-border bg-black/5 p-1 rounded-sm">
-          <div className={`w-3 h-3 rounded-full border-2 border-border ${isConnected ? 'bg-[#00D696]' : 'bg-chart-1'}`} title={isConnected ? 'Connected' : 'Disconnected'}></div>
+          <div className="w-3 h-3 rounded-full border-2 border-border bg-[#00D696]" title="Connected"></div>
         </div>
       </div>
 
@@ -118,17 +128,38 @@ export function AgentFeed() {
       >
         <div className="space-y-2">
           {logs.map((log) => (
-            <div key={log.id} className="flex items-start gap-3">
-              <span className="text-[#00D696]/50 shrink-0 font-bold">[{log.time}]</span>
-              <span className="text-[#00D696] break-words font-medium">{log.message}</span>
+            <div key={log.id} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="text-muted-foreground/70 shrink-0 font-bold">[{log.time}]</span>
+              <div className="flex-1">
+                {getStatusTag(log.status)}
+                <span className={log.status === "ok" ? "text-muted-foreground font-medium" : "text-[#E0E0E0] font-medium"}>
+                  {log.text}
+                </span>
+              </div>
             </div>
           ))}
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-[#00D696]">_</span>
-            <span className="w-2.5 h-4 bg-[#00D696] animate-pulse"></span>
-          </div>
+          
+          {currentIndex < SEQUENCE.length && SEQUENCE[currentIndex].action === "type" && activeText && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="text-muted-foreground/70 shrink-0 font-bold">[{currentTime}]</span>
+              <div className="flex-1 flex items-center">
+                {getStatusTag(SEQUENCE[currentIndex].status)}
+                <span className="text-[#E0E0E0] font-medium">{activeText}</span>
+                <span className="w-2.5 h-4 bg-[#00D696] animate-pulse inline-block ml-1 align-middle"></span>
+              </div>
+            </div>
+          )}
+
+          {/* Blinking cursor when finished */}
+          {currentIndex >= SEQUENCE.length && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[#00D696] font-bold">_</span>
+              <span className="w-2.5 h-4 bg-[#00D696] animate-pulse"></span>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+

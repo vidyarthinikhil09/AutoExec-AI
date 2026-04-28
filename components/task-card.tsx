@@ -22,6 +22,7 @@ export interface TaskCardProps {
   subTasks?: SubTask[];
   isExpanded?: boolean;
   actions?: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export function TaskCard({
@@ -33,6 +34,7 @@ export function TaskCard({
   subTasks,
   isExpanded = false,
   actions,
+  children,
 }: TaskCardProps) {
   const getStatusColor = (status: TaskStatus): string => {
     switch (status) {
@@ -101,6 +103,12 @@ export function TaskCard({
                 </span>
               </div>
             ))}
+          </div>
+        )}
+
+        {children && (
+          <div className="mt-6 pt-4 border-t-2 border-border block">
+            {children}
           </div>
         )}
 
